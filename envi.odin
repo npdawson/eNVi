@@ -94,6 +94,11 @@ editor_process_keypress :: proc() {
 	}
 }
 
+editor_refresh_screen :: proc() {
+	clear_screen := "\x1b[2J"
+	os.write(os.stdout, transmute([]u8)clear_screen)
+}
+
 exit :: proc(err: int) {
 	disable_raw_mode(&orig_termios)
 	os.exit(err)
@@ -103,6 +108,7 @@ main :: proc() {
 	orig_termios = enable_raw_mode()
 
 	for {
+		editor_refresh_screen()
 		editor_process_keypress()
 	}
 
