@@ -7,11 +7,6 @@ import "core:sys/posix"
 
 orig_termios: posix.termios
 
-die :: proc(msg: cstring) {
-	libc.perror(msg)
-	exit(1)
-}
-
 enable_raw_mode :: proc() -> posix.termios {
 	stdin := posix.fileno(posix.stdin)
 
@@ -95,13 +90,23 @@ editor_process_keypress :: proc() {
 }
 
 editor_refresh_screen :: proc() {
+	editor_clear_screen()
+}
+
+editor_clear_screen :: proc() {
 	clear_screen := "\x1b[2J"
 	os.write(os.stdout, transmute([]u8)clear_screen)
 	cursor_top_left := "\x1b[H"
 	os.write(os.stdout, transmute([]u8)cursor_top_left)
 }
 
+die :: proc(msg: cstring) {
+	libc.perror(msg)
+	exit(1)
+}
+
 exit :: proc(err: int) {
+	editor_clear_screen()
 	disable_raw_mode(&orig_termios)
 	os.exit(err)
 }
