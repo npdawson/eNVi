@@ -1,5 +1,6 @@
 package envi
 
+import "core:fmt"
 import os "core:os/os2"
 import "core:sys/posix"
 
@@ -27,6 +28,11 @@ disable_raw_mode :: proc(orig_termios: ^posix.termios) {
 	posix.tcsetattr(stdin, .TCSAFLUSH, orig_termios)
 }
 
+is_control_char :: proc(char: u8) -> bool {
+	// ASCII 0-31 and 127 are control characters
+	return char < 32 || char == 127
+}
+
 main :: proc() {
 	orig_termios := enable_raw_mode()
 	defer disable_raw_mode(&orig_termios)
@@ -34,6 +40,12 @@ main :: proc() {
 	nextchar: [1]u8
 	len, err := os.read(os.stdin, nextchar[:])
 	for len == 1  && nextchar != 'q' {
+		if is_control_char(nextchar[0]) {
+			fmt.println(nextchar[0])
+		} else {
+			fmt.printfln("%d ('%c')", nextchar[0], nextchar[0])
+		}
+
 		len, err = os.read(os.stdin, nextchar[:])
 	}
 }
