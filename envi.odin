@@ -1,15 +1,23 @@
 package envi
 
+import "core:c/libc"
 import "core:fmt"
 import os "core:os/os2"
 import "core:sys/posix"
+
+die :: proc(msg: cstring) {
+	libc.perror(msg)
+	os.exit(1)
+}
 
 enable_raw_mode :: proc() -> posix.termios {
 	stdin := posix.fileno(posix.stdin)
 
 	// get current attributes of terminal
 	orig_termios: posix.termios
-	posix.tcgetattr(stdin, &orig_termios)
+	if posix.tcgetattr(stdin, &orig_termios) == .FAIL {
+		die("tcgetattr")
+	}
 
 	// keep copy of current attributes to reset to after our program exits
 	new_termios := orig_termios
@@ -33,14 +41,19 @@ enable_raw_mode :: proc() -> posix.termios {
 	new_termios.c_cc[.VMIN] = 0 // minimum bytes to read before returning
 	new_termios.c_cc[.VTIME] = 1 // timeout in tenths of a second
 
-	posix.tcsetattr(stdin, .TCSAFLUSH, &new_termios) // set modified attributes
+	// set modified attributes
+	if posix.tcsetattr(stdin, .TCSAFLUSH, &new_termios) == .FAIL {
+		die("tcsetattr")
+	}
 
 	return orig_termios
 }
 
 disable_raw_mode :: proc(orig_termios: ^posix.termios) {
 	stdin := posix.fileno(posix.stdin)
-	posix.tcsetattr(stdin, .TCSAFLUSH, orig_termios)
+	if posix.tcsetattr(stdin, .TCSAFLUSH, orig_termios) == .FAIL {
+		die("tcsetattr")
+	}
 }
 
 is_control_char :: proc(char: u8) -> bool {
@@ -56,7 +69,11 @@ main :: proc() {
 		nextchar: [1]u8
 		_, err := os.read(os.stdin, nextchar[:])
 
-		if err != nil {}
+		if err != nil && err != .EOF {
+			fmt.print(err)
+			fmt.print("\r\n")
+			die("read")
+		}
 
 		if is_control_char(nextchar[0]) {
 			fmt.printf("%d\r\n", nextchar[0])
