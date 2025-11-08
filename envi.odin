@@ -29,6 +29,10 @@ enable_raw_mode :: proc() -> posix.termios {
 	new_termios.c_lflag -= { .ISIG } // disable signals (e.g. ctrl-c, ctrl-z)
 	new_termios.c_lflag -= { .IEXTEN } // disable ctrl-v
 
+	// read timeout
+	new_termios.c_cc[.VMIN] = 0 // minimum bytes to read before returning
+	new_termios.c_cc[.VTIME] = 1 // timeout in tenths of a second
+
 	posix.tcsetattr(stdin, .TCSAFLUSH, &new_termios) // set modified attributes
 
 	return orig_termios
@@ -48,15 +52,18 @@ main :: proc() {
 	orig_termios := enable_raw_mode()
 	defer disable_raw_mode(&orig_termios)
 
-	nextchar: [1]u8
-	len, err := os.read(os.stdin, nextchar[:])
-	for len == 1  && nextchar != 'q' {
+	for {
+		nextchar: [1]u8
+		_, err := os.read(os.stdin, nextchar[:])
+
+		if err != nil {}
+
 		if is_control_char(nextchar[0]) {
 			fmt.printf("%d\r\n", nextchar[0])
 		} else {
 			fmt.printf("%d ('%c')\r\n", nextchar[0], nextchar[0])
 		}
 
-		len, err = os.read(os.stdin, nextchar[:])
+		if nextchar[0] == 'q' do break
 	}
 }
