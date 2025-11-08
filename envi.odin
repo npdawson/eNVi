@@ -101,8 +101,10 @@ editor_clear_screen :: proc() {
 }
 
 die :: proc(msg: cstring) {
+	editor_clear_screen()
+	disable_raw_mode(&orig_termios)
 	libc.perror(msg)
-	exit(1)
+	os.exit(1)
 }
 
 exit :: proc(err: int) {
