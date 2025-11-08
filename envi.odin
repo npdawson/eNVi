@@ -5,16 +5,17 @@ import "core:fmt"
 import os "core:os/os2"
 import "core:sys/posix"
 
+orig_termios: posix.termios
+
 die :: proc(msg: cstring) {
 	libc.perror(msg)
-	os.exit(1)
+	exit(1)
 }
 
 enable_raw_mode :: proc() -> posix.termios {
 	stdin := posix.fileno(posix.stdin)
 
 	// get current attributes of terminal
-	orig_termios: posix.termios
 	if posix.tcgetattr(stdin, &orig_termios) == .FAIL {
 		die("tcgetattr")
 	}
@@ -24,18 +25,18 @@ enable_raw_mode :: proc() -> posix.termios {
 
 	// modify attributes for our needs
 	// input flags
-	new_termios.c_iflag -= { .BRKINT, .INPCK, .ISTRIP }
-	new_termios.c_iflag -= { .ICRNL } // disable ctrl-m being the same as ctrl-j
-	new_termios.c_iflag -= { .IXON } // disable flow control (ctrl-s & ctrl-q)
+	new_termios.c_iflag -= {.BRKINT, .INPCK, .ISTRIP}
+	new_termios.c_iflag -= {.ICRNL} // disable ctrl-m being the same as ctrl-j
+	new_termios.c_iflag -= {.IXON} // disable flow control (ctrl-s & ctrl-q)
 	// output flags
-	new_termios.c_oflag -= { .OPOST } // disable output processing
+	new_termios.c_oflag -= {.OPOST} // disable output processing
 	// control flags
-	new_termios.c_cflag += { .CS8 } // Character Size 8 bits
+	new_termios.c_cflag += {.CS8} // Character Size 8 bits
 	// local flags
-	new_termios.c_lflag -= { .ECHO } // disable echoing input
-	new_termios.c_lflag -= { .ICANON } // disable canonical mode
-	new_termios.c_lflag -= { .ISIG } // disable signals (e.g. ctrl-c, ctrl-z)
-	new_termios.c_lflag -= { .IEXTEN } // disable ctrl-v
+	new_termios.c_lflag -= {.ECHO} // disable echoing input
+	new_termios.c_lflag -= {.ICANON} // disable canonical mode
+	new_termios.c_lflag -= {.ISIG} // disable signals (e.g. ctrl-c, ctrl-z)
+	new_termios.c_lflag -= {.IEXTEN} // disable ctrl-v
 
 	// read timeout
 	new_termios.c_cc[.VMIN] = 0 // minimum bytes to read before returning
@@ -61,13 +62,15 @@ is_control_char :: proc(char: u8) -> bool {
 	return char < 32 || char == 127
 }
 
-main :: proc() {
-	orig_termios := enable_raw_mode()
-	defer disable_raw_mode(&orig_termios)
+ctrl_key :: proc(char: u8) -> u8 {
+	return char & 0x1f
+}
 
+editor_read_key :: proc() -> (c: u8) {
 	for {
 		nextchar: [1]u8
-		_, err := os.read(os.stdin, nextchar[:])
+		nread, err := os.read(os.stdin, nextchar[:])
+		c = nextchar[0]
 
 		if err != nil && err != .EOF {
 			fmt.print(err)
@@ -75,12 +78,33 @@ main :: proc() {
 			die("read")
 		}
 
-		if is_control_char(nextchar[0]) {
-			fmt.printf("%d\r\n", nextchar[0])
-		} else {
-			fmt.printf("%d ('%c')\r\n", nextchar[0], nextchar[0])
-		}
-
-		if nextchar[0] == 'q' do break
+		// loop until we read a character
+		if nread == 1 do break
 	}
+
+	return c
+}
+
+editor_process_keypress :: proc() {
+	c := editor_read_key()
+
+	switch c {
+	case ctrl_key('q'):
+		exit(0)
+	}
+}
+
+exit :: proc(err: int) {
+	disable_raw_mode(&orig_termios)
+	os.exit(err)
+}
+
+main :: proc() {
+	orig_termios = enable_raw_mode()
+
+	for {
+		editor_process_keypress()
+	}
+
+	exit(0)
 }
