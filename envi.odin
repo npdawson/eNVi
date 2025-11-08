@@ -3,20 +3,31 @@ package envi
 import "core:c/libc"
 import "core:fmt"
 import os "core:os/os2"
+import "core:sys/linux"
 import "core:sys/posix"
 
-orig_termios: posix.termios
+editor_config :: struct {
+	screen_rows: int,
+	screen_cols: int,
+	orig_termios: posix.termios,
+}
 
-enable_raw_mode :: proc() -> posix.termios {
+config: editor_config
+
+editor_init :: proc() {
+	config.screen_rows, config.screen_cols = get_window_size()
+}
+
+enable_raw_mode :: proc() {
 	stdin := posix.fileno(posix.stdin)
 
 	// get current attributes of terminal
-	if posix.tcgetattr(stdin, &orig_termios) == .FAIL {
+	if posix.tcgetattr(stdin, &config.orig_termios) == .FAIL {
 		die("tcgetattr")
 	}
 
 	// keep copy of current attributes to reset to after our program exits
-	new_termios := orig_termios
+	new_termios := config.orig_termios
 
 	// modify attributes for our needs
 	// input flags
@@ -41,15 +52,31 @@ enable_raw_mode :: proc() -> posix.termios {
 	if posix.tcsetattr(stdin, .TCSAFLUSH, &new_termios) == .FAIL {
 		die("tcsetattr")
 	}
-
-	return orig_termios
 }
 
-disable_raw_mode :: proc(orig_termios: ^posix.termios) {
-	stdin := posix.fileno(posix.stdin)
-	if posix.tcsetattr(stdin, .TCSAFLUSH, orig_termios) == .FAIL {
+disable_raw_mode :: proc() {
+	if posix.tcsetattr(posix.STDIN_FILENO, .TCSAFLUSH, &config.orig_termios) == .FAIL {
 		die("tcsetattr")
 	}
+}
+
+get_window_size :: proc() -> (rows: int, cols: int) {
+	winsize :: struct {
+		rows: u16,
+		cols: u16,
+		unused: u32,
+	}
+
+	ws: winsize
+
+	if linux.ioctl(linux.STDOUT_FILENO, linux.TIOCGWINSZ, uintptr(&ws)) == uintptr(-1) || ws.cols == 0 {
+		die("get window size")
+	} else {
+		rows = int(ws.rows)
+		cols = int(ws.cols)
+	}
+
+	return
 }
 
 is_control_char :: proc(char: u8) -> bool {
@@ -91,6 +118,9 @@ editor_process_keypress :: proc() {
 
 editor_refresh_screen :: proc() {
 	editor_clear_screen()
+	editor_draw_rows()
+	cursor_top_left := "\x1b[H"
+	os.write(os.stdout, transmute([]u8)cursor_top_left)
 }
 
 editor_clear_screen :: proc() {
@@ -100,21 +130,29 @@ editor_clear_screen :: proc() {
 	os.write(os.stdout, transmute([]u8)cursor_top_left)
 }
 
+editor_draw_rows :: proc() {
+	blank_row := "~\r\n"
+	for y := 0; y < config.screen_rows; y += 1 {
+		os.write(os.stdin, transmute([]u8)blank_row)
+	}
+}
+
 die :: proc(msg: cstring) {
 	editor_clear_screen()
-	disable_raw_mode(&orig_termios)
+	disable_raw_mode()
 	libc.perror(msg)
 	os.exit(1)
 }
 
 exit :: proc(err: int) {
 	editor_clear_screen()
-	disable_raw_mode(&orig_termios)
+	disable_raw_mode()
 	os.exit(err)
 }
 
 main :: proc() {
-	orig_termios = enable_raw_mode()
+	enable_raw_mode()
+	editor_init()
 
 	for {
 		editor_refresh_screen()
