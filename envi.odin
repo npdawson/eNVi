@@ -97,6 +97,8 @@ editor_process_keypress :: proc() {
 editor_refresh_screen :: proc() {
 	clear_screen := "\x1b[2J"
 	os.write(os.stdout, transmute([]u8)clear_screen)
+	cursor_top_left := "\x1b[H"
+	os.write(os.stdout, transmute([]u8)cursor_top_left)
 }
 
 exit :: proc(err: int) {
