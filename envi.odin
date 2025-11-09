@@ -7,6 +7,8 @@ import os "core:os/os2"
 import "core:sys/linux"
 import "core:sys/posix"
 
+ENVI_VERSION :: "0.0.1"
+
 editor_config :: struct {
 	screen_rows: int,
 	screen_cols: int,
@@ -136,7 +138,24 @@ editor_clear_screen :: proc() {
 
 editor_draw_rows :: proc(builder: ^strings.Builder) {
 	for y := 0; y < config.screen_rows; y += 1 {
-		strings.write_rune(builder, '~')
+		if y == config.screen_rows / 3 {
+			welcome := fmt.tprintf("eNVi editor -- version %s", ENVI_VERSION)
+			welcome_len := size_of(welcome)
+			if welcome_len > config.screen_cols {
+				welcome_len = config.screen_cols
+			}
+			padding := (config.screen_cols - welcome_len) / 2
+			if padding > 0 {
+				strings.write_string(builder, "~")
+				padding -= 1
+			}
+			for ; padding > 0; padding -= 1 {
+				strings.write_string(builder, " ")
+			}
+			strings.write_string(builder, welcome)
+		} else {
+			strings.write_rune(builder, '~')
+		}
 
 		strings.write_string(builder, "\x1b[K") // clear to end of line
 		if y < config.screen_rows - 1 {
