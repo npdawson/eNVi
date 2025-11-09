@@ -10,6 +10,7 @@ import "core:sys/posix"
 ENVI_VERSION :: "0.0.1"
 
 editor_config :: struct {
+	cx, cy: int, // cursor position
 	screen_rows: int,
 	screen_cols: int,
 	orig_termios: posix.termios,
@@ -18,6 +19,9 @@ editor_config :: struct {
 config: editor_config
 
 editor_init :: proc() {
+	config.cx = 0
+	config.cy = 0
+
 	config.screen_rows, config.screen_cols = get_window_size()
 }
 
@@ -116,6 +120,21 @@ editor_process_keypress :: proc() {
 	switch c {
 	case ctrl_key('q'):
 		exit(0)
+	case 'h', 'j', 'k', 'l':
+		editor_move_cursor(c)
+	}
+}
+
+editor_move_cursor :: proc(c: u8) {
+	switch c {
+	case 'h':
+		config.cx -= 1
+	case 'j':
+		config.cy += 1
+	case 'k':
+		config.cy -= 1
+	case 'l':
+		config.cx += 1
 	}
 }
 
@@ -125,7 +144,10 @@ editor_refresh_screen :: proc() {
 	strings.write_string(&builder, "\x1b[?25l") // hide the cursor
 	strings.write_string(&builder, "\x1b[H") // move cursor to top left
 	editor_draw_rows(&builder)
-	strings.write_string(&builder, "\x1b[H") // move cursor to top left
+
+	set_cursor_pos := fmt.tprintf("\x1b[%d;%dH", config.cy + 1, config.cx + 1)
+	strings.write_string(&builder, set_cursor_pos) // move cursor
+
 	strings.write_string(&builder, "\x1b[?25h") // show the cursor
 	os.write(os.stdout, builder.buf[:])
 	strings.builder_destroy(&builder)
