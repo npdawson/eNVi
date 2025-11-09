@@ -2,6 +2,7 @@ package envi
 
 import "core:c/libc"
 import "core:fmt"
+import "core:strings"
 import os "core:os/os2"
 import "core:sys/linux"
 import "core:sys/posix"
@@ -117,23 +118,30 @@ editor_process_keypress :: proc() {
 }
 
 editor_refresh_screen :: proc() {
-	editor_clear_screen()
-	editor_draw_rows()
-	cursor_top_left := "\x1b[H"
-	os.write(os.stdout, transmute([]u8)cursor_top_left)
+	builder := strings.builder_make()
+	// editor_clear_screen()
+	strings.write_string(&builder, "\x1b[?25l") // hide the cursor
+	strings.write_string(&builder, "\x1b[H") // move cursor to top left
+	editor_draw_rows(&builder)
+	strings.write_string(&builder, "\x1b[H") // move cursor to top left
+	strings.write_string(&builder, "\x1b[?25h") // show the cursor
+	os.write(os.stdout, builder.buf[:])
+	strings.builder_destroy(&builder)
 }
 
 editor_clear_screen :: proc() {
-	clear_screen := "\x1b[2J"
+	clear_screen := "\x1b[2J\x1b[H"
 	os.write(os.stdout, transmute([]u8)clear_screen)
-	cursor_top_left := "\x1b[H"
-	os.write(os.stdout, transmute([]u8)cursor_top_left)
 }
 
-editor_draw_rows :: proc() {
-	blank_row := "~\r\n"
+editor_draw_rows :: proc(builder: ^strings.Builder) {
 	for y := 0; y < config.screen_rows; y += 1 {
-		os.write(os.stdin, transmute([]u8)blank_row)
+		strings.write_rune(builder, '~')
+
+		strings.write_string(builder, "\x1b[K") // clear to end of line
+		if y < config.screen_rows - 1 {
+			strings.write_string(builder, "\r\n")
+		}
 	}
 }
 
