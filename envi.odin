@@ -140,7 +140,7 @@ editor_draw_rows :: proc(builder: ^strings.Builder) {
 	for y := 0; y < config.screen_rows; y += 1 {
 		if y == config.screen_rows / 3 {
 			welcome := fmt.tprintf("eNVi editor -- version %s", ENVI_VERSION)
-			welcome_len := size_of(welcome)
+			welcome_len := len(welcome)
 			if welcome_len > config.screen_cols {
 				welcome_len = config.screen_cols
 			}
