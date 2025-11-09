@@ -128,13 +128,13 @@ editor_process_keypress :: proc() {
 editor_move_cursor :: proc(c: u8) {
 	switch c {
 	case 'h':
-		config.cx -= 1
+		if config.cx != 0 do config.cx -= 1
 	case 'j':
-		config.cy += 1
+		if config.cy != config.screen_rows do config.cy += 1
 	case 'k':
-		config.cy -= 1
+		if config.cy != 0 do config.cy -= 1
 	case 'l':
-		config.cx += 1
+		if config.cx != config.screen_cols do config.cx += 1
 	}
 }
 
